@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<robot name="staircase">
+
+    <link name="base_link">
+    </link>
+
+    <!-- Step 1 -->
+    <link name="step1">
+        <visual>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <material name="lavender">
+                <color rgba="0.8 0.6 1.0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+        </collision>
+    </link>
+
+    <joint name="base_to_step1" type="fixed">
+        <parent link="base_link"/>
+        <child link="step1"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Step 2 -->
+    <link name="step2">
+        <visual>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <material name="lavender">
+                <color rgba="0.8 0.6 1.0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+        </collision>
+    </link>
+
+    <joint name="step1_to_step2" type="fixed">
+        <parent link="step1"/>
+        <child link="step2"/>
+        <origin xyz="0.3 0 0.15" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Step 3 -->
+    <link name="step3">
+        <visual>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <material name="lavender">
+                <color rgba="0.8 0.6 1.0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+        </collision>
+    </link>
+
+    <joint name="step2_to_step3" type="fixed">
+        <parent link="step2"/>
+        <child link="step3"/>
+        <origin xyz="0.3 0 0.15" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Step 4 -->
+    <link name="step4">
+        <visual>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <material name="lavender">
+                <color rgba="0.8 0.6 1.0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+        </collision>
+    </link>
+
+    <joint name="step3_to_step4" type="fixed">
+        <parent link="step3"/>
+        <child link="step4"/>
+        <origin xyz="0.3 0 0.15" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Step 5 -->
+    <link name="step5">
+        <visual>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+            <material name="lavender">
+                <color rgba="0.8 0.6 1.0 1"/>
+            </material>
+        </visual>
+        <collision>
+            <geometry>
+                <box size="0.3 0.6 0.15"/>
+            </geometry>
+            <origin xyz="0.15 0 0.075" rpy="0 0 0"/>
+        </collision>
+    </link>
+
+    <joint name="step4_to_step5" type="fixed">
+        <parent link="step4"/>
+        <child link="step5"/>
+        <origin xyz="0.3 0 0.15" rpy="0 0 0"/>
+    </joint>
+
+</robot>
