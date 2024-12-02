@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'basic_move = hexapod_demo.basic_move:main',
+            'full_move = hexapod_demo.full_move:main',
         ],
     },
 )

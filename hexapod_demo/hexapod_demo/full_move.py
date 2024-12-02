@@ -11,7 +11,7 @@ from hw5code.TransformHelpers import *
 
 from math import pi, sin, cos, acos, atan2, sqrt, fmod, exp
 
-jointnames = ['j_base_rx', 'j_base_ry', 'j_base_rz',
+jointnames = ['j_body_rx', 'j_body_ry', 'j_body_rz',
               'j_c1_rf', 'j_thigh_rf', 'j_tibia_rf',
               'j_c1_rm', 'j_thigh_rm', 'j_tibia_rm',
               'j_c1_rr', 'j_thigh_rr', 'j_tibia_rr',
@@ -67,9 +67,9 @@ class DemoNode(Node):
         # integrate to get the current time.
         self.t += self.dt
 
-        # Compute position/orientation of the pelvis (w.r.t. world).
-        ppelvis = pxyz(0.5 * cos(self.t), 0.5 * sin(self.t), 0.2)
-        Rpelvis = Rotz(sin(self.t))
+        #Compute position/orientation of the pelvis (w.r.t. world).
+        ppelvis = pxyz(0, 0, 0)
+        Rpelvis = Reye()
         Tpelvis = T_from_Rp(Rpelvis, ppelvis)
 
         # Build up and send the Pelvis w.r.t. World Transform!
@@ -84,7 +84,7 @@ class DemoNode(Node):
         q = np.zeros(len(jointnames))
         qdot = np.zeros(len(jointnames))
         # Define the movement pattern for the hexapod
-        for i in range(6):
+        for i in range(7):
             q[3 * i] = pi / 8 * sin(self.t + i * pi / 3)
             qdot[3 * i] = pi / 8 * cos(self.t + i * pi / 3)
             q[3 * i + 1] = pi / 6 * sin(self.t + i * pi / 3)
