@@ -33,7 +33,7 @@ def generate_launch_description():
     rvizcfg = os.path.join(pkgdir('hw3code'), 'rviz/viewurdf.rviz')
 
     # Locate the URDF file.
-    urdf = os.path.join(pkgdir('phantomx_description'), 'urdf/phantomx.urdf')
+    urdf = os.path.join(pkgdir('phantomx_description'), 'urdf/phantomx_free.urdf')
 
     # Load the robot's URDF file (XML).
     with open(urdf, 'r') as file:
