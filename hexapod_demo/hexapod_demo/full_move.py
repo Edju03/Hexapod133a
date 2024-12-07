@@ -32,6 +32,7 @@ class DemoNode(Node):
         super().__init__(name)
         self.leg_names = ["rf", "rm", "rr", "lf", "lm", "lr"]
         self.chains = [KinematicChain(self, 'base_link', 'tip_' + self.leg_names[l], jointnames[0:6] + jointnames[6 + 3*l: 9 + 3*l]) for l in range(6)]
+        self.chain_to_body = KinematicChain(self, 'base_link', 'MP_BODY', jointnames[:6])
         # Initialize the transform broadcaster
         self.broadcaster = TransformBroadcaster(self)
 
@@ -73,6 +74,10 @@ class DemoNode(Node):
             J[3 * i: 3 * i + 3, 6 + 3*i: 9 + 3*i] = Jv[:, 6:]
             xp[3*i:3*i+3] = xplast
         return xp, J
+    
+    def fkin_s(self, qd):
+        _, xRlast, _, Jw = self.chain_to_body.fkin(qd[:6])
+        return xRlast, Jw
 
     def walk_traj(self, t, period = 2, dist = 0.2, height=0.06, even = True):
         if even:
@@ -142,8 +147,15 @@ class DemoNode(Node):
         error_p = target_p - xp
         xdot = target_v + error_p * self.lam
         Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(24)) @ J.T
+
+        #######################################################################
+        Rlast, Js = self.fkin_s(qdlast)
+        error_R = eR(Reye(), Rlast)
+        wr = np.zeros(3) + error_R * self.lam
+        Jwinv_s = np.linalg.inv(Js.T @ Js + self.gamma ** 2 * np.eye(6)) @ Js.T
         qdsec = np.zeros(24)
-        qdsec[2] = 1
+        qdsec[:6] = Jwinv_s @ wr
+        #######################################################################
         qddot = Jwinv @ xdot + (np.eye(24) - Jwinv@J )@qdsec
         qd = qdlast + self.dt * qddot
         self.qd = qd
