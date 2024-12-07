@@ -187,7 +187,7 @@ class DemoNode(Node):
             vr_body = self.vr_body(target_v)
             xdot = np.concatenate((vr_body, xdot))
             self.pbody = plast
-        else:
+        elif plast is not None and Rlast is not None:
             error_R = eR(Reye(), self.Rbody)
             wr = error_R * self.lam
             vr_body = self.vr_body(target_v)
