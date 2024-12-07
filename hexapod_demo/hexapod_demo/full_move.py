@@ -61,11 +61,13 @@ class DemoNode(Node):
 
         self.qd = self.q0
         self.pd = self.fkin(self.qd)[0]
+        self.pbody = self.fkin(self.qd, pbody = True)[3]
+        self.Rbody = self.fkin(self.qd, Rbody = True)[2]
         self.p0 = self.pd
         self.lam = 20
         self.gamma = 0.1
 
-    def fkin(self, qd):
+    def fkin(self, qd, pbody = False, Rbody = False):
         J = np.zeros((18, 24))
         xp = np.zeros(18)
         for i, c in enumerate(self.chains):
@@ -73,11 +75,27 @@ class DemoNode(Node):
             J[3*i: 3*i + 3, 0:6] = Jv[:, 0:6]
             J[3 * i: 3 * i + 3, 6 + 3*i: 9 + 3*i] = Jv[:, 6:]
             xp[3*i:3*i+3] = xplast
-        return xp, J
+        
+        Rlast = None
+        plast = None
+
+        if Rbody:
+            _, Rlast, _, Jws = self.fkin_s(qd)
+            Jw = np.zeros((3, 24))
+            Jw[:,:6] = Jws
+            J = np.vstack((Jw, J))
+        
+        if pbody:
+            plast, _, Jvs, _ = self.fkin_s(qd)
+            Jv = np.zeros((3, 24))
+            Jv[:,:6] = Jvs
+            J = np.vstack((Jv, J))
+
+        return xp, J, Rlast, plast
     
     def fkin_s(self, qd):
-        _, xRlast, _, Jw = self.chain_to_body.fkin(qd[:6])
-        return xRlast, Jw
+        xplast, xRlast, Jv, Jw = self.chain_to_body.fkin(qd[:6])
+        return xplast, xRlast, Jv, Jw
 
     def walk_traj(self, t, period = 2, dist = 0.2, height=0.06, even = True):
         if even:
@@ -116,6 +134,20 @@ class DemoNode(Node):
     # Return the current time (in ROS format).
     def now(self):
         return self.start + Duration(seconds=self.t)
+    
+    def vr_body(self, target_v):
+        pbody_last = np.array([np.average([self.pd[3*i] for i in range(6)]), 
+                       np.average([self.pd[3*i + 1] for i in range(6)]), 
+                       np.average([self.pd[3*i + 2] for i in range(6)])])
+        pbody_last[2] += 0.17
+        # target_vbody = np.array([np.average([target_v[3*i] for i in range(6)]), 
+        #                        np.average([target_v[3*i + 1] for i in range(6)]), 
+        #                        np.average([target_v[3*i + 2] for i in range(6)])])
+        target_vbody = np.zeros(3)
+        error_pbody = ep(pbody_last, self.pbody)
+        vr_body = target_vbody + error_pbody * self.lam
+
+        return vr_body
 
     # Update - send a new joint command every time step.
     def update(self):
@@ -135,31 +167,39 @@ class DemoNode(Node):
         trans.child_frame_id = 'base_link'
         trans.transform = Transform_from_T(Tpelvis)
         self.broadcaster.sendTransform(trans)
-        target_p, target_v = self.gen_traj(self.t)
-        # Compute the joints.
-        qdlast = self.qd
-        xp, J = self.fkin(qdlast)
-        # xp = np.concatenate((np.array([0.1 * sin(self.t),0.1 *sin(2*self.t + 1),0.1 *sin(self.t+2) + 0.1]), xp))
-        # J = np.vstack((np.zeros((3, 24)), J))
-        # J[0,0] = 1
-        # J[1, 1] = 1
-        # J[2, 2] = 1
-        error_p = target_p - xp
-        xdot = target_v + error_p * self.lam
-        Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(24)) @ J.T
 
-        #######################################################################
-        Rlast, Js = self.fkin_s(qdlast)
-        error_R = eR(Reye(), Rlast)
-        wr = np.zeros(3) + error_R * self.lam
-        Jwinv_s = np.linalg.inv(Js.T @ Js + self.gamma ** 2 * np.eye(6)) @ Js.T
-        qdsec = np.zeros(24)
-        qdsec[:6] = Jwinv_s @ wr
-        #######################################################################
-        qddot = Jwinv @ xdot + (np.eye(24) - Jwinv@J )@qdsec
+        target_p, target_v = self.gen_traj(self.t)
+        qdlast = self.qd
+
+        xp, J, Rlast, plast = self.fkin(qdlast, pbody = True,  Rbody = True)
+
+        Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(J.T.shape[0])) @ J.T
+
+        error_p = self.pd - xp
+        xdot = target_v + error_p * self.lam
+
+        if plast is None and Rlast is not None:
+            error_R = eR(Reye(), self.Rbody)
+            wr = error_R * self.lam
+            xdot = np.concatenate((wr, xdot))
+            self.Rbody = Rlast
+        elif plast is not None and Rlast is None:
+            vr_body = self.vr_body(target_v)
+            xdot = np.concatenate((vr_body, xdot))
+            self.pbody = plast
+        else:
+            error_R = eR(Reye(), self.Rbody)
+            wr = error_R * self.lam
+            vr_body = self.vr_body(target_v)
+            xdot = np.concatenate((vr_body, wr, xdot))
+            self.Rbody = Rlast
+            self.pbody = plast
+        
+        qddot = Jwinv @ xdot
         qd = qdlast + self.dt * qddot
         self.qd = qd
         self.pd = xp
+        
         # Build up a command message and publish.
         cmdmsg = JointState()
         cmdmsg.header.stamp = self.now().to_msg()  # Current time for ROS
