@@ -49,7 +49,7 @@ def staircase():
 
 
 class LegTrajectory:
-    def __init__(self, init_pos, step_dist = np.array([0.2, 0, 0.06])):
+    def __init__(self, init_pos, leg_num, step_dist = np.array([0.3, 0, 0.06]), step_dis_second = [0.1, 0, 0]):
         self.step_time = 0.4
         self.last = init_pos
         self.target = init_pos
@@ -59,10 +59,40 @@ class LegTrajectory:
         self.cur_p = self.last
         self.period = 2
         self.default_step = step_dist
+        self.leg_num = leg_num
+        self.step_dis_second = step_dis_second
+        self.caterpillar = 0
+        self.step_dis_third = self.default_step - self.step_dis_second
+        self.step_dis_complement = np.array([0.5, 0, 0.06]) - self.default_step
+        self.step_height = 0.06
 
     def get_traj(self, t):
         if t > self.period + self.start_time:
-            self.set_target(t, self.last + self.default_step)
+            if self.leg_num in [2, 5]:
+                if self.caterpillar == 0:
+                    self.set_target(t, self.last + self.step_dis_second)
+                elif self.caterpillar == 1:
+                    self.set_target(t, self.last + self.step_dis_third - np.array([0, 0, self.step_height]))
+                else:
+                    self.set_target(t, self.last + self.step_dis_complement + np.array([0, 0, self.step_height]))
+                self.caterpillar = (self.caterpillar + 1) % 3
+            elif self.leg_num in [1, 4]:
+                if self.caterpillar == 0:
+                    self.set_target(t, self.last + self.step_dis_second)
+                elif self.caterpillar == 1:
+                    self.set_target(t, self.last + self.step_dis_third - np.array([0, 0, self.step_height]))
+                else:
+                    self.set_target(t, self.last + self.step_dis_complement + np.array([0, 0, self.step_height]))
+                self.caterpillar = (self.caterpillar + 1) % 3
+            else:
+                if self.caterpillar == 0:
+                    self.set_target(t, self.last + self.default_step)
+                elif self.caterpillar == 1:
+                    self.set_target(t, self.last + self.step_dis_complement)
+                else:
+                    self.set_target(t, self.last)
+                self.caterpillar = (self.caterpillar + 1) % 3
+                
         if t > self.step_time + self.start_time:
             self.moving = False
             self.last = self.target
@@ -126,9 +156,10 @@ class DemoNode(Node):
 
         self.qd = self.q0
         self.pd = self.fkin(self.qd)[0]
-        self.leg_trajs = [LegTrajectory(self.pd[3*l:3*l+3]* np.array([1, 1.2, 1])) for l in range(6)]
+        self.leg_trajs = [LegTrajectory(self.pd[3*l:3*l+3]* np.array([1, 1.2, 1]), l) for l in range(6)]
         for i in range(6):
-            self.leg_trajs[i].start_time = (i%2 + 0.34 * (i//2) + 0.34)%2
+            pair_number = abs(i % 3  - 2)
+            self.leg_trajs[i].start_time = (0.4 * pair_number) % 2
 
         self.pbody = self.fkin(self.qd, pbody = True)[3]
         self.Rbody = self.fkin(self.qd, Rbody = True)[2]
@@ -136,7 +167,7 @@ class DemoNode(Node):
         self.lam = 20
         self.gamma = 0.01
         self.stair_height = 0.06
-        self.stair_width = 0.6
+        self.stair_width = 0.2
 
         # Create and publish the staircase markers
         markers = staircase()
