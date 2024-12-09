@@ -8,6 +8,7 @@ from geometry_msgs.msg import TransformStamped, Point, Vector3
 from sensor_msgs.msg import JointState
 from hw6code.KinematicChain import KinematicChain
 from hw5code.TransformHelpers import *
+from hw5code.TrajectoryUtils import *
 from visualization_msgs.msg import Marker, MarkerArray
 from std_msgs.msg import ColorRGBA
 from rclpy.qos import QoSProfile, DurabilityPolicy
@@ -46,6 +47,42 @@ def staircase():
     
     return markers
 
+
+class LegTrajectory:
+    def __init__(self, init_pos, step_dist = np.array([0.2, 0, 0.06])):
+        self.step_time = 0.4
+        self.last = init_pos
+        self.target = init_pos
+        self.start_time = 0
+        self.moving = False
+        self.height = 0.6
+        self.cur_p = self.last
+        self.period = 2
+        self.default_step = step_dist
+
+    def get_traj(self, t):
+        if t > self.period + self.start_time:
+            self.set_target(t, self.last + self.default_step)
+        if t > self.step_time + self.start_time:
+            self.moving = False
+            self.last = self.target
+        if not self.moving:
+            return self.last, np.zeros(3)
+        v0 = np.array([0, 0, self.height])
+        vf =  np.array([0, 0, -self.height])
+        a, da = goto(t - self.start_time, self.step_time, 0, self.step_time)
+
+        p, v = spline(a,self.step_time, self.last, self.target, v0, vf)
+        v = v * da
+        self.cur_p = p
+        return p, v
+
+    def set_target(self, t, target):
+        self.target = target
+        self.last = self.cur_p
+        self.start_time = t
+        self.moving = True
+
 #
 #   Demo Node Class
 #
@@ -55,6 +92,7 @@ class DemoNode(Node):
         # Initialize the node, naming it as specified
         super().__init__(name)
         self.leg_names = ["rf", "rm", "rr", "lf", "lm", "lr"]
+
         self.chains = [KinematicChain(self, 'base_link', 'tip_' + self.leg_names[l], jointnames[0:6] + jointnames[6 + 3*l: 9 + 3*l]) for l in range(6)]
         self.chain_to_body = KinematicChain(self, 'base_link', 'MP_BODY', jointnames[:6])
         # Initialize the transform broadcaster
@@ -88,11 +126,15 @@ class DemoNode(Node):
 
         self.qd = self.q0
         self.pd = self.fkin(self.qd)[0]
+        self.leg_trajs = [LegTrajectory(self.pd[3*l:3*l+3]* np.array([1, 1.2, 1])) for l in range(6)]
+        for i in range(6):
+            self.leg_trajs[i].start_time = (i%2 + 0.34 * (i//2) + 0.34)%2
+
         self.pbody = self.fkin(self.qd, pbody = True)[3]
         self.Rbody = self.fkin(self.qd, Rbody = True)[2]
         self.p0 = self.pd
         self.lam = 20
-        self.gamma = 0.1
+        self.gamma = 0.01
         self.stair_height = 0.06
         self.stair_width = 0.6
 
@@ -139,35 +181,37 @@ class DemoNode(Node):
         return xplast, xRlast, Jv, Jw
 
     def walk_traj(self, t, leg_num, period = 5, dist = 0.2, height=0.06):
+        ct = t % (period / 5) * 5
+        num_steps = t // period
         if t % period < period/5:
             if leg_num == 2 or leg_num == 5:
-                return 0.5 + t/(period/5)*dist, dist/(period/5), 0, 0
+                return (ct/period + num_steps)*dist, dist/period * 5, 0, 0
             else:
                 return 0, 0, 0, 0
         elif t % period < period/5 * 2:
             if leg_num == 1 or leg_num == 4:
-                return 0.3 + t/(period/5)*dist, dist/(period/5), 0, 0
+                return (ct/period + num_steps)*dist, dist/period * 5, 0, 0
             else:
                 return 0, 0, 0, 0
         elif t % period < period/5 * 3:
             if leg_num == 0 or leg_num == 3:
-                h = -sin(t /period * 2 * pi)*height + t * self.stair_height/period
-                dh = -2 * pi / period * cos(t/period*2*pi)*height + self.stair_height/period
-                return (t - period/5*2)*dist, dist/(period/5)*2, h, dh
+                h = sin(ct /period * pi)*height + t * self.stair_height/period
+                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
+                return (ct/period + num_steps)*dist, dist/period*5, h, dh
             else:
                 return 0, 0, 0, 0
         elif t % period < period/5 * 4:
             if leg_num == 1 or leg_num == 4:
-                h = sin(t /period * 2 * pi)*height + t * self.stair_height/period
-                dh = 2 * pi / period * cos(t/period*2*pi)*height + self.stair_height/period
-                return (t - period/5*3)*dist, dist/period*2, h, dh
+                h = sin(ct /period * pi)*height + ct * self.stair_height/period
+                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
+                return (ct/period + num_steps)*dist, dist/period*5, h, dh
             else:
                 return 0, 0, 0, 0
         elif t % period < period/5 * 5:
             if leg_num == 2 or leg_num == 5:
-                h = -sin(t /period * 2 * pi)*height + t * self.stair_height/period
-                dh = -2 * pi / period * cos(t/period*2*pi)*height + self.stair_height/period
-                return (t - period/5*4)*dist, dist/period*2, h, dh
+                h = sin(ct /period* pi)*height + ct * self.stair_height/period
+                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
+                return (ct/period + num_steps)*dist, dist/period*5, h, dh
             else:
                 return 0, 0, 0, 0
 
@@ -178,14 +222,29 @@ class DemoNode(Node):
             y = 0
             dy = 0
             x, dx, z, dz = self.walk_traj(t, i)
+            if x == 0:
+                x = self.pd[ 3*i]
             p = np.array([x, y,z])
             dp = np.array([dx, dy, dz])
             positions.append(p)
             vels.append(dp)
-        p = np.concatenate(positions) + self.p0
+        p = np.concatenate(positions)
         dp = np.concatenate(vels)
         return p, dp
 
+    def step_cycle(self, t):
+        positions = []
+        vels = []
+
+        for i, l in enumerate(self.leg_names):
+            trajectory = self.leg_trajs[i]
+
+            cp, cv = trajectory.get_traj(t)
+            positions.append(cp)
+            vels.append(cv)
+        p = np.concatenate(positions)
+        dp = np.concatenate(vels)
+        return p, dp
     # Shutdown.
     def shutdown(self):
         # Destroy the node, including cleaning up the timer.
@@ -260,14 +319,13 @@ class DemoNode(Node):
 
         self.marker_pub.publish(MarkerArray(markers=markers))
 
-        target_p, target_v = self.gen_traj(self.t)
+        target_p, target_v = self.step_cycle(self.t)
         qdlast = self.qd
 
-        xp, J, Rlast, plast = self.fkin(qdlast, pbody = True,  Rbody = True)
+        xp, J, Rlast, plast = self.fkin(qdlast, pbody = False,  Rbody = True)
 
         Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(J.T.shape[0])) @ J.T
-
-        error_p = self.pd - xp
+        error_p = target_p - xp
         xdot = target_v + error_p * self.lam
 
 
@@ -289,6 +347,8 @@ class DemoNode(Node):
             self.pbody = plast
 
         qdsec = np.zeros(J.T.shape[0])
+        qdsec[2] = 100
+        qdsec[6:] = -20*self.qd[6:]
         qddot = Jwinv @ xdot + (np.eye(J.T.shape[0]) - Jwinv@J )@qdsec
         qd = qdlast + self.dt * qddot
         self.qd = qd
