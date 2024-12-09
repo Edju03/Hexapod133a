@@ -32,6 +32,7 @@ class DemoNode(Node):
         super().__init__(name)
         self.leg_names = ["rf", "rm", "rr", "lf", "lm", "lr"]
         self.chains = [KinematicChain(self, 'base_link', 'tip_' + self.leg_names[l], jointnames[0:6] + jointnames[6 + 3*l: 9 + 3*l]) for l in range(6)]
+        self.body_chain = KinematicChain(self, 'base_link', 'MP_BODY', jointnames[0:6])
         # Initialize the transform broadcaster
         self.broadcaster = TransformBroadcaster(self)
 
@@ -59,10 +60,10 @@ class DemoNode(Node):
         self.q0[2] += 0.17
 
         self.qd = self.q0
-        self.pd = self.fkin(self.qd)[0]
+        self.pd = self.fkin(self.qd)[0] * 0.9
         self.p0 = self.pd
         self.lam = 20
-        self.gamma = 0.1
+        self.gamma = 0.01
 
     def fkin(self, qd):
         J = np.zeros((18, 24))
@@ -74,7 +75,14 @@ class DemoNode(Node):
             xp[3*i:3*i+3] = xplast
         return xp, J
 
-    def walk_traj(self, t, period = 2, dist = 0.2, height=0.06, even = True):
+    def fkin_with_body(self, qd, pos = True, rot = True):
+        J = np.zeros((24, 24))
+        xp = np.zeros(24)
+        xp[6:], J[6:, :] = self.fkin(qd)
+        xp[0:3], xp[3:6], J[0:3, :], J[3:6, :] = self.body_chain.fkin(qd[list(range(6) )])
+        return xp, J
+
+    def walk_traj(self, t, period = 2, dist = 0.2, height=0.08, even = True):
         if even:
             if t % period < period/2:
                 return t//period * dist, 0, 0, 0
@@ -94,7 +102,7 @@ class DemoNode(Node):
         for i, l in enumerate(self.leg_names):
             y = 0
             dy = 0
-            x, dx, z, dz = self.walk_traj(t+i*0.4)
+            x, dx, z, dz = self.walk_traj(t+i*0.6)
             p = np.array([x, y,z])
             dp = np.array([dx, dy, dz])
             positions.append(p)
@@ -143,7 +151,9 @@ class DemoNode(Node):
         xdot = target_v + error_p * self.lam
         Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(24)) @ J.T
         qdsec = np.zeros(24)
-        qdsec[2] = 1
+        qdsec[3:6] = -50*qdlast[3:6]
+        qdsec[6:] = -10 * qdlast[6:]
+        qdsec[2] = 20
         qddot = Jwinv @ xdot + (np.eye(24) - Jwinv@J )@qdsec
         qd = qdlast + self.dt * qddot
         self.qd = qd
