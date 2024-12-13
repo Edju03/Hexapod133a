@@ -189,9 +189,9 @@ class DemoNode(Node):
             xplast, xRlast, Jv, Jw = c.fkin(qd[list(range(6) ) + list(range(6 + 3*i, 9 + 3*i)) ])
             J[3*i: 3*i + 3, 0:6] = Jv[:, 0:6]
             J[3 * i: 3 * i + 3, 6 + 3*i: 9 + 3*i] = Jv[:, 6:]
-            # # Zero out Jacobian for middle legs (indices 1 and 4)
-            # if i == 2 or i == 4:
-            #     J[3*i: 3*i + 3, :] = 0
+            # Zero out Jacobian for middle legs (indices 1 and 4)
+            if i == 2 or i == 4 or i == 0:
+                J[3*i: 3*i + 3, :] = 0
             xp[3*i:3*i+3] = xplast
         
         Rlast = None
@@ -209,6 +209,26 @@ class DemoNode(Node):
             J = np.vstack((Jv, J))
 
         return xp, J, Rlast, plast
+    
+    # Function to calculate the "inverse" of singular value matrix
+    def sinv(self, s, jacobian_shape):
+        
+        m ,n = jacobian_shape[0], jacobian_shape[1]
+
+        for i in range(len(s)):
+
+            if abs(s[i]) >= self.gamma:
+                s[i] = 1/s[i]
+            else:
+                s[i] = s[i]/(self.gamma)**2
+
+        s = np.diag(s)
+        if m < n:
+            s = np.hstack((s, np.zeros((m, n-m))))
+        elif n < m:
+            s = np.vstack((s, np.zeros((m-n, n))))
+
+        return s.T
     
     def fkin_s(self, qd):
         xplast, xRlast, Jv, Jw = self.chain_to_body.fkin(qd[:6])
@@ -306,7 +326,11 @@ class DemoNode(Node):
 
         xp, J, Rlast, plast = self.fkin(qdlast, pbody = False,  Rbody = True)
 
-        Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(J.T.shape[0])) @ J.T
+        u, s, vT = np.linalg.svd(J)
+
+        Jwinv = vT.T @ (self.sinv(s, J.shape) @ u.T)
+
+        #Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(J.T.shape[0])) @ J.T
         error_p = target_p - xp
         xdot = target_v + error_p * self.lam
 
