@@ -128,7 +128,7 @@ class DemoNode(Node):
         self.pd = self.fkin(self.qd)[0]
         self.leg_trajs = [LegTrajectory(self.pd[3*l:3*l+3]* np.array([1, 1.2, 1])) for l in range(6)]
         for i in range(6):
-            self.leg_trajs[i].start_time = (i%2 + 0.34 * (i//2) + 0.34)%2
+            self.leg_trajs[i].start_time = (i%2 + 0.34 * (i//2) - 0.34)%2
 
         self.pbody = self.fkin(self.qd, pbody = True)[3]
         self.Rbody = self.fkin(self.qd, Rbody = True)[2]
