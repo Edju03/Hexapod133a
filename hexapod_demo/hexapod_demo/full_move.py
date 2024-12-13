@@ -259,7 +259,7 @@ class DemoNode(Node):
     def now(self):
         return self.start + Duration(seconds=self.t)
     
-    def vr_body(self, plast, circle = False, rise = False):
+    def vr_body(self, plast, target_v, circle = False, rise = False):
         t = self.t
         period = 5
         phase = t % period
@@ -302,9 +302,13 @@ class DemoNode(Node):
             target_pbody[2] += 0.17  # Maintain constant height above stance feet
 
         # Set desired body velocity (forward motion)
-        target_vbody = np.array([0.04, 0, self.stair_height/5])
+        target_vbody = np.array([
+                np.average([target_v[3*i] for i in range(6)]),
+                np.average([target_v[3*i + 1] for i in range(6)]),
+                np.average([target_v[3*i + 2] for i in range(6)])
+            ])
     
-        error_pbody = 0.005*ep(self.pbody, plast)
+        error_pbody = ep(self.pbody, plast)
         vr_body = target_vbody + error_pbody * self.lam
 
         return target_pbody, vr_body
@@ -345,7 +349,7 @@ class DemoNode(Node):
         #target_p, target_v = self.pd, np.zeros(18)
         qdlast = self.qd
 
-        xp, J, Rlast, plast = self.fkin(qdlast, pbody = False,  Rbody = True)
+        xp, J, Rlast, plast = self.fkin(qdlast, pbody = True,  Rbody = True)
 
         u, s, vT = np.linalg.svd(J)
 
@@ -362,13 +366,13 @@ class DemoNode(Node):
             xdot = np.concatenate((wr, xdot))
             self.Rbody = Reye()
         elif plast is not None and Rlast is None:
-            target_pbody, vr_body = self.vr_body(plast)
+            target_pbody, vr_body = self.vr_body(plast, target_v)
             xdot = np.concatenate((vr_body, xdot))
             self.pbody = target_pbody
         elif plast is not None and Rlast is not None:
             error_R = eR(self.Rbody, Rlast)
             wr = error_R * self.lam
-            target_pbody, vr_body = self.vr_body(plast, rise=True)
+            target_pbody, vr_body = self.vr_body(plast, target_v)
             xdot = np.concatenate((vr_body, wr, xdot))
             self.Rbody = Reye()
             self.pbody = target_pbody
