@@ -40,7 +40,7 @@ def staircase():
     markers = []
     
     x0, y0, z0 = 0.28, 0.0, 0.0  
-    lx, ly, lz = 0.5, 0.5, 0.06
+    lx, ly, lz = 0.8, 0.8, 0.06
     
     for i in range(10):
         markers.append(step(x0 + i * lx + lx / 2, y0, z0 + i * lz + lz / 2, lx, ly, lz))
@@ -49,7 +49,7 @@ def staircase():
 
 
 class LegTrajectory:
-    def __init__(self, init_pos, leg_num, step_dist = np.array([0.3, 0, 0.06]), step_dis_second = [0.1, 0, 0]):
+    def __init__(self, init_pos, leg_num, step_dist = np.array([0.25, 0, 0.06]), step_dis_second = [0.1, 0, 0]):
         self.step_time = 0.4
         self.last = init_pos
         self.target = init_pos
@@ -63,7 +63,7 @@ class LegTrajectory:
         self.step_dis_second = step_dis_second
         self.caterpillar = 0
         self.step_dis_third = self.default_step - self.step_dis_second
-        self.step_dis_complement = np.array([0.5, 0, 0.06]) - self.default_step
+        self.step_dis_complement = np.array([0.8, 0, 0.06]) - self.default_step
         self.step_height = 0.06
 
     def get_traj(self, t):
@@ -189,6 +189,9 @@ class DemoNode(Node):
             xplast, xRlast, Jv, Jw = c.fkin(qd[list(range(6) ) + list(range(6 + 3*i, 9 + 3*i)) ])
             J[3*i: 3*i + 3, 0:6] = Jv[:, 0:6]
             J[3 * i: 3 * i + 3, 6 + 3*i: 9 + 3*i] = Jv[:, 6:]
+            # # Zero out Jacobian for middle legs (indices 1 and 4)
+            # if i == 2 or i == 4:
+            #     J[3*i: 3*i + 3, :] = 0
             xp[3*i:3*i+3] = xplast
         
         Rlast = None
@@ -210,58 +213,6 @@ class DemoNode(Node):
     def fkin_s(self, qd):
         xplast, xRlast, Jv, Jw = self.chain_to_body.fkin(qd[:6])
         return xplast, xRlast, Jv, Jw
-
-    def walk_traj(self, t, leg_num, period = 5, dist = 0.2, height=0.06):
-        ct = t % (period / 5) * 5
-        num_steps = t // period
-        if t % period < period/5:
-            if leg_num == 2 or leg_num == 5:
-                return (ct/period + num_steps)*dist, dist/period * 5, 0, 0
-            else:
-                return 0, 0, 0, 0
-        elif t % period < period/5 * 2:
-            if leg_num == 1 or leg_num == 4:
-                return (ct/period + num_steps)*dist, dist/period * 5, 0, 0
-            else:
-                return 0, 0, 0, 0
-        elif t % period < period/5 * 3:
-            if leg_num == 0 or leg_num == 3:
-                h = sin(ct /period * pi)*height + t * self.stair_height/period
-                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
-                return (ct/period + num_steps)*dist, dist/period*5, h, dh
-            else:
-                return 0, 0, 0, 0
-        elif t % period < period/5 * 4:
-            if leg_num == 1 or leg_num == 4:
-                h = sin(ct /period * pi)*height + ct * self.stair_height/period
-                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
-                return (ct/period + num_steps)*dist, dist/period*5, h, dh
-            else:
-                return 0, 0, 0, 0
-        elif t % period < period/5 * 5:
-            if leg_num == 2 or leg_num == 5:
-                h = sin(ct /period* pi)*height + ct * self.stair_height/period
-                dh = pi / period * cos(ct/period*pi)*height + self.stair_height/period
-                return (ct/period + num_steps)*dist, dist/period*5, h, dh
-            else:
-                return 0, 0, 0, 0
-
-    def gen_traj(self, t):
-        positions = []
-        vels = []
-        for i, l in enumerate(self.leg_names):
-            y = 0
-            dy = 0
-            x, dx, z, dz = self.walk_traj(t, i)
-            if x == 0:
-                x = self.pd[ 3*i]
-            p = np.array([x, y,z])
-            dp = np.array([dx, dy, dz])
-            positions.append(p)
-            vels.append(dp)
-        p = np.concatenate(positions)
-        dp = np.concatenate(vels)
-        return p, dp
 
     def step_cycle(self, t):
         positions = []
