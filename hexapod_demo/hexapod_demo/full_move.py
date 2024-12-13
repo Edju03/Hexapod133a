@@ -256,7 +256,7 @@ class DemoNode(Node):
     def now(self):
         return self.start + Duration(seconds=self.t)
     
-    def vr_body(self, target_v):
+    def vr_body(self, plast, circle = False):
         t = self.t
         period = 5
         phase = t % period
@@ -265,29 +265,38 @@ class DemoNode(Node):
         stance_legs = []
         
         # Check which legs are in stance phase
-        for i in range(6):
-            _, _, z, _ = self.walk_traj(t, i)
-            if abs(z) < 0.001:  # If leg is not lifting (approximately at ground level)
-                stance_legs.append(i)
+        # for i in range(6):
+        #     _, _, z, _ = self.walk_traj(t, i)
+        #     if abs(z) < 0.001:  # If leg is not lifting (approximately at ground level)
+        #         stance_legs.append(i)
         
         # Calculate average position using only stance legs
-        if stance_legs:  # If we have any stance legs
-            pbody_last = np.array([
-                np.average([self.pd[3*i] for i in stance_legs]),
-                np.average([self.pd[3*i + 1] for i in stance_legs]),
-                np.average([self.pd[3*i + 2] for i in stance_legs])
+
+        # if stance_legs:  # If we have any stance legs
+        #     pbody_last = np.array([
+        #         np.average([self.pd[3*i] for i in stance_legs]),
+        #         np.average([self.pd[3*i + 1] for i in stance_legs]),
+        #         np.average([self.pd[3*i + 2] for i in stance_legs])
+        #     ])
+        #     pbody_last[2] += 0.17  # Maintain constant height above stance feet
+        # else:
+        #     pbody_last = self.pbody
+
+        target_pbody = np.array([
+                np.average([self.pd[3*i] for i in range(6)]),
+                np.average([self.pd[3*i + 1] for i in range(6)]),
+                np.average([self.pd[3*i + 2] for i in range(6)])
             ])
-            pbody_last[2] += 0.17  # Maintain constant height above stance feet
-        else:
-            pbody_last = self.pbody
+        
+        target_pbody[2] += 0.17  # Maintain constant height above stance feet
         
         # Set desired body velocity (forward motion)
         target_vbody = np.array([0.04, 0, self.stair_height/5])
-        
-        error_pbody = ep(pbody_last, self.pbody)
+    
+        error_pbody = ep(self.pbody, plast)
         vr_body = target_vbody + error_pbody * self.lam
 
-        return vr_body
+        return target_pbody, vr_body
 
     # Update - send a new joint command every time step.
     def update(self):
@@ -322,35 +331,36 @@ class DemoNode(Node):
         self.marker_pub.publish(MarkerArray(markers=markers))
 
         target_p, target_v = self.step_cycle(self.t)
+        #target_p, target_v = self.pd, np.zeros(18)
         qdlast = self.qd
 
-        xp, J, Rlast, plast = self.fkin(qdlast, pbody = False,  Rbody = True)
+        xp, J, Rlast, plast = self.fkin(qdlast, pbody = True,  Rbody = True)
 
         u, s, vT = np.linalg.svd(J)
 
         Jwinv = vT.T @ (self.sinv(s, J.shape) @ u.T)
 
         #Jwinv = np.linalg.inv(J.T @ J + self.gamma ** 2 * np.eye(J.T.shape[0])) @ J.T
-        error_p = target_p - xp
+        error_p = ep(self.pd, xp)
         xdot = target_v + error_p * self.lam
 
-
+        self.pd = target_p
         if plast is None and Rlast is not None:
-            error_R = eR(Reye(), self.Rbody)
+            error_R = eR(self.Rbody, Rlast)
             wr = error_R * self.lam
             xdot = np.concatenate((wr, xdot))
-            self.Rbody = Rlast
+            self.Rbody = Reye()
         elif plast is not None and Rlast is None:
-            vr_body = self.vr_body(target_v)
+            target_pbody, vr_body = self.vr_body(plast)
             xdot = np.concatenate((vr_body, xdot))
-            self.pbody = plast
+            self.pbody = target_pbody
         elif plast is not None and Rlast is not None:
-            error_R = eR(Reye(), self.Rbody)
+            error_R = eR(self.Rbody, Rlast)
             wr = error_R * self.lam
-            vr_body = self.vr_body(target_v)
+            target_pbody, vr_body = self.vr_body(plast)
             xdot = np.concatenate((vr_body, wr, xdot))
-            self.Rbody = Rlast
-            self.pbody = plast
+            self.Rbody = Reye()
+            self.pbody = target_pbody
 
         qdsec = np.zeros(J.T.shape[0])
         qdsec[2] = 100
@@ -358,7 +368,7 @@ class DemoNode(Node):
         qddot = Jwinv @ xdot + (np.eye(J.T.shape[0]) - Jwinv@J )@qdsec
         qd = qdlast + self.dt * qddot
         self.qd = qd
-        self.pd = xp
+        
         
         # Build up a command message and publish.
         cmdmsg = JointState()
