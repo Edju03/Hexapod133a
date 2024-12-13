@@ -2,9 +2,6 @@
 
 ## Build Instructions:
 
-### Clone the Repository:
-
-
 ### Build:
 ```bash
 cd ~/robotws
