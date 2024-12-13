@@ -40,7 +40,7 @@ def staircase():
     markers = []
     
     x0, y0, z0 = 0.28, 0.0, 0.0  
-    lx, ly, lz = 0.8, 0.8, 0.06
+    lx, ly, lz = 0.5, 0.8, 0.06
     
     for i in range(10):
         markers.append(step(x0 + i * lx + lx / 2, y0, z0 + i * lz + lz / 2, lx, ly, lz))
@@ -63,7 +63,7 @@ class LegTrajectory:
         self.step_dis_second = step_dis_second
         self.caterpillar = 0
         self.step_dis_third = self.default_step - self.step_dis_second
-        self.step_dis_complement = np.array([0.8, 0, 0.06]) - self.default_step
+        self.step_dis_complement = np.array([0.5, 0, 0.06]) - self.default_step
         self.step_height = 0.06
 
     def get_traj(self, t):
