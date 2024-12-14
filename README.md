@@ -1,5 +1,8 @@
 # Hexapod133a
 
+## Demo Videos:
+[The demo videos can be found here](https://drive.google.com/drive/u/3/folders/1ilrjRt14x5afsUi1LaYct1I82j9jsDka)
+
 ## Build Instructions:
 
 ### Build:
