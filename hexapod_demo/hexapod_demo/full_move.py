@@ -165,7 +165,7 @@ class DemoNode(Node):
         self.Rbody = self.fkin(self.qd, Rbody = True)[2]
         self.p0 = self.pd
         self.lam = 20
-        self.gamma = 0.01
+        self.gamma = 0.04
         self.stair_height = 0.06
         self.stair_width = 0.2
 
@@ -190,8 +190,8 @@ class DemoNode(Node):
             J[3*i: 3*i + 3, 0:6] = Jv[:, 0:6]
             J[3 * i: 3 * i + 3, 6 + 3*i: 9 + 3*i] = Jv[:, 6:]
             # Zero out Jacobian for middle legs (indices 1 and 4)
-            if i == 2 or i == 4 or i == 0:
-                J[3*i: 3*i + 3, :] = 0
+            if i == 1:
+                J[3*i: 3*i + 3, 6:] = 0
             xp[3*i:3*i+3] = xplast
         
         Rlast = None
@@ -334,7 +334,7 @@ class DemoNode(Node):
         #target_p, target_v = self.pd, np.zeros(18)
         qdlast = self.qd
 
-        xp, J, Rlast, plast = self.fkin(qdlast, pbody = True,  Rbody = True)
+        xp, J, Rlast, plast = self.fkin(qdlast, pbody = False,  Rbody = False)
 
         u, s, vT = np.linalg.svd(J)
 
@@ -364,7 +364,7 @@ class DemoNode(Node):
 
         qdsec = np.zeros(J.T.shape[0])
         qdsec[2] = 100
-        qdsec[6:] = -20*self.qd[6:]
+        qdsec[6:] = -60*self.qd[6:]
         qddot = Jwinv @ xdot + (np.eye(J.T.shape[0]) - Jwinv@J )@qdsec
         qd = qdlast + self.dt * qddot
         self.qd = qd
